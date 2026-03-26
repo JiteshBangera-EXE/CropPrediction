@@ -112,6 +112,39 @@ print("\nCorrelation with Yield (State):")
 if 'yield_(quintal/_hectare)' in corr.columns:
     print(corr['yield_(quintal/_hectare)'].sort_values(ascending=False))
 
+# --- EDA Visualizations ---
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Plot 1: Correlation Heatmap
+sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f', ax=axes[0, 0], cbar_kws={'shrink': 0.8})
+axes[0, 0].set_title('Correlation Matrix', fontsize=12, fontweight='bold')
+
+# Plot 2: Yield Distribution by Crop
+sns.boxplot(data=final_df, x='crop', y='yield_(quintal/_hectare)', palette='viridis', ax=axes[0, 1])
+axes[0, 1].set_title('Yield Distribution by Crop Type', fontsize=12, fontweight='bold')
+axes[0, 1].set_xlabel('Crop')
+axes[0, 1].set_ylabel('Yield (Quintal/Hectare)')
+axes[0, 1].tick_params(axis='x', rotation=45)
+
+# Plot 3: Cost vs Yield Scatter
+sns.scatterplot(data=final_df, x='cost_c2', y='yield_(quintal/_hectare)', hue='crop', 
+                palette='Set2', alpha=0.7, ax=axes[1, 0])
+axes[1, 0].set_title('Cost of Cultivation vs Yield', fontsize=12, fontweight='bold')
+axes[1, 0].set_xlabel('Cost of Cultivation (₹/Hectare)')
+axes[1, 0].set_ylabel('Yield (Quintal/Hectare)')
+axes[1, 0].legend(title='Crop', bbox_to_anchor=(1.02, 1), loc='upper left')
+
+# Plot 4: Average Yield by State
+state_yield = final_df.groupby('state')['yield_(quintal/_hectare)'].mean().sort_values(ascending=True)
+state_yield.plot(kind='barh', color='steelblue', ax=axes[1, 1])
+axes[1, 1].set_title('Average Yield by State', fontsize=12, fontweight='bold')
+axes[1, 1].set_xlabel('Average Yield (Quintal/Hectare)')
+axes[1, 1].set_ylabel('State')
+
+plt.tight_layout()
+plt.savefig('eda_visualizations.png', dpi=150, bbox_inches='tight')
+print("EDA plots saved to eda_visualizations.png")
+
 # ==========================================
 # 3. MODEL TRAINING
 # ==========================================
@@ -161,13 +194,43 @@ print(f"Model Performance:")
 print(f"MAE: {mae:.2f}")
 print(f"R2 Score: {r2:.4f}")
 
-# Plot
-plt.figure(figsize=(10, 6))
-plt.scatter(y_test, y_pred, alpha=0.7)
-plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', lw=2)
-plt.xlabel("Actual Yield")
-plt.ylabel("Predicted Yield")
-plt.title(f"Actual vs Predicted Yield (R2: {r2:.3f})")
+# --- Model Evaluation Visualizations ---
+fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+# Plot 1: Actual vs Predicted
+axes[0].scatter(y_test, y_pred, alpha=0.7, c='steelblue', edgecolors='black', linewidth=0.5)
+axes[0].plot([y.min(), y.max()], [y.min(), y.max()], 'r--', lw=2, label='Perfect Prediction')
+axes[0].set_xlabel("Actual Yield (Quintal/Hectare)", fontsize=10)
+axes[0].set_ylabel("Predicted Yield (Quintal/Hectare)", fontsize=10)
+axes[0].set_title(f"Actual vs Predicted Yield\nR² = {r2:.4f}", fontsize=12, fontweight='bold')
+axes[0].legend()
+
+# Plot 2: Residuals (Error Distribution)
+residuals = y_test - y_pred
+axes[1].hist(residuals, bins=20, color='coral', edgecolor='black', alpha=0.7)
+axes[1].axvline(x=0, color='red', linestyle='--', lw=2)
+axes[1].set_xlabel("Prediction Error (Actual - Predicted)", fontsize=10)
+axes[1].set_ylabel("Frequency", fontsize=10)
+axes[1].set_title(f"Residuals Distribution\nMAE = {mae:.2f}", fontsize=12, fontweight='bold')
+
+# Plot 3: Feature Importance
+rf_model = pipeline.named_steps['model']
+ohe = pipeline.named_steps['preprocessor'].named_transformers_['cat']
+cat_feature_names = ohe.get_feature_names_out(categorical_features)
+all_feature_names = numerical_features + list(cat_feature_names)
+importances = rf_model.feature_importances_
+
+# Get top 10 features
+indices = np.argsort(importances)[::-1][:10]
+top_features = [all_feature_names[i] for i in indices]
+top_importances = importances[indices]
+
+axes[2].barh(range(len(top_features)), top_importances[::-1], color='seagreen', edgecolor='black')
+axes[2].set_yticks(range(len(top_features)))
+axes[2].set_yticklabels(top_features[::-1])
+axes[2].set_xlabel("Feature Importance", fontsize=10)
+axes[2].set_title("Top 10 Important Features", fontsize=12, fontweight='bold')
+
 plt.tight_layout()
-plt.savefig("prediction_plot.png")
-print("Plot saved to prediction_plot.png")
+plt.savefig("prediction_plot.png", dpi=150, bbox_inches='tight')
+print("Prediction plots saved to prediction_plot.png")
